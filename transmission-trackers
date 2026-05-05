@@ -1,0 +1,66 @@
+#!/bin/bash
+unset -v transpath transaddr transauth trackerfile
+
+#Text Color
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+NC='\033[0m'
+
+#Vars
+if [ ! `which transmission-remote` ]; then
+	printf "\n\t\t${RED}   ERROR: transmission-remote not found!${NC}\n"
+	exit 1
+else
+	transpath=`which transmission-remote`
+fi
+if [ -f ~/.trntrkset ]; then
+	transaddr=`sed -n '1p' ~/.trntrkset`
+	transauth=`sed -n '2p' ~/.trntrkset`
+fi
+
+if [ ! -f ~/.trntrkset ]; then
+	printf "\n\t\t${RED}   ERROR: Missing settings file!${NC}\n"
+	printf "\n\t\t   Creating a template one at ~/.trntrkset\n"
+	install -m 700 <(printf "ip:port\nusername:password") ~/.trntrkset
+	printf "\n\t\t   Replace the credentials in the file with your login for transmission-daemon\n"
+	exit 1
+elif [ $# -lt 1 ]; then
+	printf "\n\t\t${RED}   ERROR: This script requires at least one torrent ID or 'all'${NC}\n"
+	printf "\t\t\t\tCurrent torrents:\n"
+	$transpath $transaddr --auth $transauth -l
+	exit 1
+else
+	trackerfile=$(mktemp /tmp/transtmp.XXXXXXXXXX)
+	curl -s https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best_ip.txt | grep . > $trackerfile
+	printf "Tracker file TMP: %s\n" $trackerfile
+fi
+
+parse_torrent()
+{
+	printf "Torrent: %s\n" $1
+	cat $trackerfile | while read tracker
+	do
+	  if $transpath $transaddr --auth $transauth --torrent $1 --tracker-add $tracker > /dev/null; then
+		printf "\t${GREEN}Tracker: %s, SUCESS${NC}\n" $tracker
+	  else
+		printf "\t${RED}Tracker: %s, ERROR${NC}\n" $tracker
+	  fi
+	  sleep 0.10s
+	done
+}
+
+
+if [ "$1" = "all" ]; then
+	for torrent in `$transpath $transaddr --auth $transauth -l | awk '{print $1}' | grep [0-9]`; do
+		parse_torrent $torrent
+		$transpath $transaddr --auth $transauth --torrent $torrent --reannounce > /dev/null
+		sleep 0.5s
+	done
+else
+	for torrent in "$@"; do
+		parse_torrent $torrent
+		$transpath $transaddr --auth $transauth --torrent $torrent --reannounce > /dev/null
+		sleep 0.5s
+	done
+fi
+rm -vf $trackerfile
