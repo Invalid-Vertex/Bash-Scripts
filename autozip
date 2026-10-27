@@ -1,0 +1,22 @@
+#!/bin/bash
+zip_dir="$1"
+do_del="$2"
+
+if [ $# -lt 1 ]; then
+ printf 'This script requires a directory, and optionally, y/n to delete the file after zipping it\n'
+ printf "This will bzip2 EVERY file in the specified directory and recursively\n"
+ exit 1
+fi
+
+for file in `find $zip_dir -type f` ; do
+ if [[ $file != *.bz2 ]]; then 
+  if [[ $do_del == "y" ]]; then
+   nice -n 10 7z a -tbzip2 -mx=9 -mmt=10 -- "$file.bz2" "$file" && rm "$file"
+  else
+   nice -n 10 7z a -tbzip2 -mx=9 -mmt=10 -- "$file.bz2" "$file"
+  fi
+  echo "[AutoZip]: Zipping $file"
+ elif [[ $file == *.bz2 ]]; then
+  echo "[AutoZip]: $file is already a .bz2, skipping"
+fi
+done
